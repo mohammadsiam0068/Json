@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>M3U8 JSON Server Injector & Fixer</title>
+    <!-- JSON5 Library for fixing bad JSON -->
+    <script src="https://unpkg.com/json5@2/dist/index.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .box {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #34495e;
+        }
+        textarea {
+            width: 100%;
+            height: 400px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+        .btn-group {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            margin: 0 5px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #3498db;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .btn-success {
+            background-color: #2ecc71;
+        }
+        .btn-success:hover {
+            background-color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>JSON Error Fixer & Server Injector</h2>
+    
+    <div class="grid">
+        <div class="box">
+            <label for="inputJson">Input JSON (ভুল থাকলেও সমস্যা নেই):</label>
+            <textarea id="inputJson" placeholder="এখানে আপনার JSON পেস্ট করুন..."></textarea>
+        </div>
+        <div class="box">
+            <label for="outputJson">Processed & Fixed JSON:</label>
+            <textarea id="outputJson" readonly placeholder="প্রসেস করা ডেটা এখানে আসবে..."></textarea>
+        </div>
+    </div>
+
+    <div class="btn-group">
+        <button onclick="processJSON()">Process Data</button>
+        <button class="btn-success" onclick="copyResult()">Copy Result</button>
+        <button class="btn-success" onclick="downloadJSON()">Download .json</button>
+    </div>
+</div>
+
+<script>
+    function processJSON() {
+        const inputData = document.getElementById('inputJson').value.trim();
+        
+        if (!inputData) {
+            alert('দয়া করে প্রথমে JSON ডেটা দিন!');
+            return;
+        }
+
+        try {
+            // JSON5 ব্যবহার করে ডেটা পার্স করা (এটি ব্রোকেন/ভুল JSON ঠিক করতে পারে)
+            const parsedData = JSON5.parse(inputData);
+
+            // রিকার্সিভ ফাংশন: যেকোনো লেভেলের অ্যারে খুঁজে চ্যানেল মডিফাই করা
+            function injectServers(obj) {
+                for (let key in obj) {
+                    if (Array.isArray(obj[key])) {
+                        // যদি অ্যারে হয়, তারমানে এটি চ্যানেলের লিস্ট
+                        obj[key].forEach(channel => {
+                            if (typeof channel === 'object' && channel !== null) {
+                                // সার্ভার অ্যাড করা (প্রথম সার্ভারে মেইন URL দেওয়া হয়েছে)
+                                channel.servers = [
+                                    { "name": "Server 1", "url": channel.url || "" },
+                                    { "name": "Server 2", "url": "" },
+                                    { "name": "Server 3", "url": "" }
+                                ];
+                            }
+                        });
+                    } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+                        // যদি ভেতরে আরও অবজেক্ট থাকে, তবে ফাংশনটি আবার কল হবে
+                        injectServers(obj[key]);
+                    }
+                }
+            }
+
+            injectServers(parsedData);
+
+            // মডিফাই করা ডেটা সুন্দরভাবে আউটপুট বক্সে দেখানো
+            document.getElementById('outputJson').value = JSON.stringify(parsedData, null, 2);
+
+        } catch (error) {
+            alert('JSON প্রসেস করা সম্ভব হয়নি! অনেক বড় ভুল আছে:\n\n' + error.message);
+        }
+    }
+
+    function copyResult() {
+        const outputBox = document.getElementById('outputJson');
+        if (!outputBox.value) {
+            alert('কপি করার মতো কোনো ডেটা নেই!');
+            return;
+        }
+        outputBox.select();
+        document.execCommand('copy');
+        alert('ডেটা কপি করা হয়েছে!');
+    }
+
+    function downloadJSON() {
+        const outputData = document.getElementById('outputJson').value;
+        if (!outputData) {
+            alert('ডাউনলোড করার মতো কোনো ডেটা নেই!');
+            return;
+        }
+        
+        const blob = new Blob([outputData], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        
+        a.href = url;
+        a.download = "updated_playlist.json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>
